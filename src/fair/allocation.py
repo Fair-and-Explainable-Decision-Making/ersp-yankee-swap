@@ -1,4 +1,5 @@
 import time
+import copy
 from queue import Queue
 
 import matplotlib.pyplot as plt
@@ -7,6 +8,8 @@ import numpy as np
 
 from .agent import BaseAgent
 from .item import ScheduleItem
+from .optimization import StudentAllocationProgram
+
 
 """Initializations functions"""
 
@@ -516,7 +519,18 @@ def update_exchange_graph_E(
 """Allocation algorithms"""
 
 
-def serial_dictatorship(agents: list[BaseAgent], items: list[ScheduleItem]):
+def integer_linear_program(
+    agents: list[BaseAgent], items: list[ScheduleItem], valuations=None
+):
+    orig_students = [student.student for student in agents]
+    program = StudentAllocationProgram(orig_students, items).compile()
+    opt_alloc = program.formulateUSW(valuations=valuations.flatten()).solve()
+    return opt_alloc.reshape(len(agents), len(items)).transpose()
+
+
+def serial_dictatorship(
+    agents: list[BaseAgent], items: list[ScheduleItem], valuations=None
+):
     """SPIRE allocation algorithm.
 
     In each round, give the playing agent all items they can add to their bundle that give them positive utility
@@ -528,22 +542,48 @@ def serial_dictatorship(agents: list[BaseAgent], items: list[ScheduleItem]):
     Returns:
          X (type[np.ndarray]): allocation matrix
     """
-    X = initialize_allocation_matrix(items, agents)
-    agent_index = 0
-    for agent_index, agent in enumerate(agents):
-        bundle = []
-        desired_items = agent.get_desired_items_indexes(items)
-        for item in desired_items:
-            if X[item, len(agents)] > 0:
-                current_val = agent.valuation(bundle)
-                new_bundle = bundle.copy()
-                new_bundle.append(items[item])
-                new_valuation = agent.valuation(new_bundle)
-                if new_valuation > current_val:
-                    X[item, agent_index] = 1
-                    X[item, len(agents)] -= 1
-                    bundle = new_bundle.copy()
-    return X
+    if valuations is None:
+        X = initialize_allocation_matrix(items, agents)
+        agent_index = 0
+        for agent_index, agent in enumerate(agents):
+            bundle = []
+            desired_items = agent.get_desired_items_indexes(items)
+            for item in desired_items:
+                if X[item, len(agents)] > 0:
+                    current_val = agent.valuation(bundle)
+                    new_bundle = bundle.copy()
+                    new_bundle.append(items[item])
+                    new_valuation = agent.valuation(new_bundle)
+                    if new_valuation > current_val:
+                        X[item, agent_index] = 1
+                        X[item, len(agents)] -= 1
+                        bundle = new_bundle.copy()
+        return X
+    else:
+        # Initialize allocation
+        n = len(agents)
+        m = len(items)
+        X = np.zeros([m, n], dtype=int)
+        # Make deep copy of the schedule to alter capacities
+        schedule_copy = copy.deepcopy(items)
+
+        for student_idx in range(len(agents)):
+
+            small_ilp_students = agents[student_idx : student_idx + 1]
+
+            c_small_ilp = np.array([valuations[student_idx]])
+
+            orig_students = [student.student for student in small_ilp_students]
+
+            program = StudentAllocationProgram(orig_students, schedule_copy).compile()
+            opt_alloc = program.formulateUSW(valuations=c_small_ilp.flatten()).solve()
+
+            X[:, student_idx] = opt_alloc
+
+            for i, take in enumerate(opt_alloc):
+                if take == 1:
+                    schedule_copy[i].capacity -= 1
+        return X
 
 
 def round_robin(agents: list[BaseAgent], items: list[ScheduleItem]):
