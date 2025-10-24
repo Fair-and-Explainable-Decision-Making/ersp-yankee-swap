@@ -280,7 +280,7 @@ def update_allocation(
 
 def update_allocation_E(
     X: type[np.ndarray],
-    G: type[nx.Graph],
+    exchange_graph: type[nx.Graph],
     edge_matrix: list[list],
     agents: list[BaseAgent],
     items: list[ScheduleItem],
@@ -295,7 +295,7 @@ def update_allocation_E(
 
     Args:
         X (type[np.ndarray]): allocation matrix
-        G (type[nx.Graph]): exchange graph
+        exchange_graph (type[nx.Graph]): exchange graph
         edge_matrix (list[list]): edge matrix
         agents (list[BaseAgent]): List of agents from class BaseAgent
         items (list[ScheduleItem]): List of items from class BaseItem
@@ -304,7 +304,7 @@ def update_allocation_E(
 
     Returns:
         X (type[np.ndarray]): updated allocation matrix
-        G (type[nx.Graph]): updated exchange graph
+        exchange_graph (type[nx.Graph]): updated exchange graph
         edge_matrix (list[list]): updated edge matrix
         agents_involved (list[int]): indices of the agents involved in the transfer path
     """
@@ -326,11 +326,11 @@ def update_allocation_E(
                     edge_matrix[next_to_last_item][item_index].remove(current_agent)
                     if len(
                         edge_matrix[next_to_last_item][item_index]
-                    ) == 0 and G.has_edge(next_to_last_item, item_index):
-                        G.remove_edge(next_to_last_item, item_index)
+                    ) == 0 and exchange_graph.has_edge(next_to_last_item, item_index):
+                        exchange_graph.remove_edge(next_to_last_item, item_index)
         else:
             X[last_item, agent_picked] = 1
-    return X, G, edge_matrix, agents_involved
+    return X, exchange_graph, edge_matrix, agents_involved
 
 
 """Graph functions for the exchange graph"""
@@ -359,7 +359,7 @@ def find_shortest_path(G: type[nx.Graph], start: str, end: str):
 
 def add_agent_to_exchange_graph(
     X: type[np.ndarray],
-    G: type[nx.Graph],
+    exchange_graph: type[nx.Graph],
     agents: list[BaseAgent],
     items: list[ScheduleItem],
     agent_picked: int,
@@ -370,15 +370,15 @@ def add_agent_to_exchange_graph(
 
     Args:
         X (type[np.ndarray]): allocation matrix
-        G (type[nx.Graph]): exchange graph
+        exchange_graph (type[nx.Graph]): exchange graph
         agents (list[BaseAgent]): List of agents from class BaseAgent
         items (list[ScheduleItem]): List of items from class BaseItem
         agent_picked (int): index of the agent currently playing
 
     Returns:
-        G (type[nx.Graph]): Updated exchange graph
+        exchange_graph (type[nx.Graph]): Updated exchange graph
     """
-    G.add_node("s")
+    exchange_graph.add_node("s")
     bundle = get_bundle_from_allocation_matrix(X, items, agent_picked)
     agent = agents[agent_picked]
     for i in agent.get_desired_items_indexes(items):
@@ -388,13 +388,13 @@ def add_agent_to_exchange_graph(
             and agents[agent_picked].marginal_contribution(bundle, g) == 1
             and g.capacity > 0
         ):
-            G.add_edge("s", i)
-    return G
+            exchange_graph.add_edge("s", i)
+    return exchange_graph
 
 
 def update_exchange_graph(
     X: type[np.ndarray],
-    G: type[nx.Graph],
+    exchange_graph: type[nx.Graph],
     agents: list[BaseAgent],
     items: list[ScheduleItem],
     path_og: list[int],
@@ -406,20 +406,20 @@ def update_exchange_graph(
 
     Args:
         X (type[np.ndarray]): allocation matrix
-        G (type[nx.Graph]): exchange graph
+        exchange_graph (type[nx.Graph]): exchange graph
         agents (list[BaseAgent]): List of agents from class BaseAgent
         items (list[ScheduleItem]): List of items from class BaseItem
         path_og (list[int]): shortest path, list of items indices
         agents_involved (list[int]): list of the indices of the agents invovled in the transfer path
 
     Returns:
-        G (type[nx.Graph]): updated exchange graph
+        exchange_graph (type[nx.Graph]): updated exchange graph
     """
     path = path_og.copy()
     path = path[1:-1]
     last_item = path[-1]
     if X[last_item, len(agents)] <= 0:
-        G.remove_edge(last_item, "t")
+        exchange_graph.remove_edge(last_item, "t")
     agents_involved_desired_items = get_multiple_agents_desired_items(
         agents, items, agents_involved
     )
@@ -450,17 +450,17 @@ def update_exchange_graph(
                             exchangeable = True
                             break
                 if exchangeable:
-                    if not G.has_edge(item_idx, item_2_idx):
-                        G.add_edge(item_idx, item_2_idx)
+                    if not exchange_graph.has_edge(item_idx, item_2_idx):
+                        exchange_graph.add_edge(item_idx, item_2_idx)
                 else:
-                    if G.has_edge(item_idx, item_2_idx):
-                        G.remove_edge(item_idx, item_2_idx)
-    return G
+                    if exchange_graph.has_edge(item_idx, item_2_idx):
+                        exchange_graph.remove_edge(item_idx, item_2_idx)
+    return exchange_graph
 
 
 def update_exchange_graph_E(
     X: type[np.ndarray],
-    G: type[nx.Graph],
+    exchange_graph: type[nx.Graph],
     edge_matrix: list[list],
     agents: list[BaseAgent],
     items: list[ScheduleItem],
@@ -474,7 +474,7 @@ def update_exchange_graph_E(
 
     Args:
         X (type[np.ndarray]): allocation matrix
-        G (type[nx.Graph]): exchange graph
+        exchange_graph (type[nx.Graph]): exchange graph
         edge_matrix (list[list]): edge matrix
         agents (list[BaseAgent]): List of agents from class BaseAgent
         items (list[ScheduleItem]): List of items from class BaseItem
@@ -482,14 +482,14 @@ def update_exchange_graph_E(
         agents_involved (list[int]): list of the indices of the agents invovled in the transfer path
 
     Returns:
-        G (type[nx.Graph]): updated exchange graph
+        exchange_graph (type[nx.Graph]): updated exchange graph
         edge_matrix (list[list]): updated edge matrix
     """
     path = path_og.copy()
     path = path[1:-1]
     last_item = path[-1]
     if X[last_item, len(agents)] == 0:
-        G.remove_edge(last_item, "t")
+        exchange_graph.remove_edge(last_item, "t")
     for agent_index in agents_involved:
         agent = agents[agent_index]
         agent_bundle = get_bundle_indexes_from_allocation_matrix(X, agent_index)
@@ -507,16 +507,16 @@ def update_exchange_graph_E(
                             edge_matrix[item1_idx][item2_idx].remove(agent_index)
                             if len(
                                 edge_matrix[item1_idx][item2_idx]
-                            ) == 0 and G.has_edge(item1_idx, item2_idx):
-                                G.remove_edge(item1_idx, item2_idx)
+                            ) == 0 and exchange_graph.has_edge(item1_idx, item2_idx):
+                                exchange_graph.remove_edge(item1_idx, item2_idx)
                     else:
                         if agent.exchange_contribution(
                             agent_bundle_items, item1, item2
                         ):
                             edge_matrix[item1_idx][item2_idx].append(agent_index)
-                            if not G.has_edge(item1_idx, item2_idx):
-                                G.add_edge(item1_idx, item2_idx)
-    return G, edge_matrix
+                            if not exchange_graph.has_edge(item1_idx, item2_idx):
+                                exchange_graph.add_edge(item1_idx, item2_idx)
+    return exchange_graph, edge_matrix
 
 
 """Allocation algorithms"""
@@ -699,7 +699,7 @@ def general_yankee_swap(
     M = len(agents)
     players = list(range(M))
     X = initialize_allocation_matrix(items, agents)
-    G = initialize_exchange_graph(items)
+    exchange_graph = initialize_exchange_graph(items)
     gain_vector = np.zeros([M])
     count = 0
     time_steps = []
@@ -709,13 +709,15 @@ def general_yankee_swap(
         print("Iteration: %d" % count, end="\r")
         count += 1
         agent_picked = np.argmax(gain_vector)
-        G = add_agent_to_exchange_graph(X, G, agents, items, agent_picked)
+        exchange_graph = add_agent_to_exchange_graph(
+            X, exchange_graph, agents, items, agent_picked
+        )
         if plot_exchange_graph:
-            nx.draw(G, with_labels=True)
+            nx.draw(exchange_graph, with_labels=True)
             plt.show()
 
-        path = find_shortest_path(G, "s", "t")
-        G.remove_node("s")
+        path = find_shortest_path(exchange_graph, "s", "t")
+        exchange_graph.remove_node("s")
 
         if path == False:
             players.remove(agent_picked)
@@ -724,12 +726,14 @@ def general_yankee_swap(
             agents_involved_arr.append(0)
         else:
             X, agents_involved = update_allocation(X, agents, items, path, agent_picked)
-            G = update_exchange_graph(X, G, agents, items, path, agents_involved)
+            exchange_graph = update_exchange_graph(
+                X, exchange_graph, agents, items, path, agents_involved
+            )
             gain_vector[agent_picked] = get_gain_function(
                 X, agents, items, agent_picked, criteria, weights
             )
             if plot_exchange_graph:
-                nx.draw(G, with_labels=True)
+                nx.draw(exchange_graph, with_labels=True)
                 plt.show()
             time_steps.append(time.process_time() - start)
             agents_involved_arr.append(len(agents_involved))
@@ -763,7 +767,7 @@ def general_yankee_swap_E(
     M = len(agents)
     players = list(range(M))
     X = initialize_allocation_matrix(items, agents)
-    G = initialize_exchange_graph(items)
+    exchange_graph = initialize_exchange_graph(items)
     edge_matrix = [[[] for i in range(N)] for j in range(N)]
     gain_vector = np.zeros([M])
     count = 0
@@ -774,13 +778,15 @@ def general_yankee_swap_E(
         print("Iteration: %d" % count, end="\r")
         count += 1
         agent_picked = np.argmax(gain_vector)
-        G = add_agent_to_exchange_graph(X, G, agents, items, agent_picked)
+        exchange_graph = add_agent_to_exchange_graph(
+            X, exchange_graph, agents, items, agent_picked
+        )
         if plot_exchange_graph:
-            nx.draw(G, with_labels=True)
+            nx.draw(exchange_graph, with_labels=True)
             plt.show()
 
-        path = find_shortest_path(G, "s", "t")
-        G.remove_node("s")
+        path = find_shortest_path(exchange_graph, "s", "t")
+        exchange_graph.remove_node("s")
 
         if path == False:
             players.remove(agent_picked)
@@ -788,17 +794,17 @@ def general_yankee_swap_E(
             time_steps.append(time.process_time() - start)
             agents_involved_arr.append(0)
         else:
-            X, G, edge_matrix, agents_involved = update_allocation_E(
-                X, G, edge_matrix, agents, items, path, agent_picked
+            X, exchange_graph, edge_matrix, agents_involved = update_allocation_E(
+                X, exchange_graph, edge_matrix, agents, items, path, agent_picked
             )
-            G, edge_matrix = update_exchange_graph_E(
-                X, G, edge_matrix, agents, items, path, agents_involved
+            exchange_graph, edge_matrix = update_exchange_graph_E(
+                X, exchange_graph, edge_matrix, agents, items, path, agents_involved
             )
             gain_vector[agent_picked] = get_gain_function(
                 X, agents, items, agent_picked, criteria, weights
             )
             if plot_exchange_graph:
-                nx.draw(G, with_labels=True)
+                nx.draw(exchange_graph, with_labels=True)
                 plt.show()
             time_steps.append(time.process_time() - start)
             agents_involved_arr.append(len(agents_involved))
