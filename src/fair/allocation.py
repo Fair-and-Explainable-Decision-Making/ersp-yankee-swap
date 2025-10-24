@@ -695,12 +695,11 @@ def general_yankee_swap(
         time_steps (list[float]): time elapsed until the end of every iteration
         agents_involved_arr (list[int]): nuber of agents involved in every iteration
     """
-    N = len(items)
-    M = len(agents)
-    players = list(range(M))
+    n = len(agents)
+    players = list(range(n))
     X = initialize_allocation_matrix(items, agents)
     exchange_graph = initialize_exchange_graph(items)
-    gain_vector = np.zeros([M])
+    gain_vector = np.zeros([n])
     count = 0
     time_steps = []
     agents_involved_arr = []
@@ -763,13 +762,13 @@ def general_yankee_swap_E(
         time_steps (list[float]): time elapsed until the end of every iteration
         agents_involved_arr (list[int]): nuber of agents involved in every iteration
     """
-    N = len(items)
-    M = len(agents)
-    players = list(range(M))
+    n = len(agents)
+    m = len(items)
+    players = list(range(n))
     X = initialize_allocation_matrix(items, agents)
     exchange_graph = initialize_exchange_graph(items)
-    edge_matrix = [[[] for i in range(N)] for j in range(N)]
-    gain_vector = np.zeros([M])
+    edge_matrix = [[[] for i in range(m)] for j in range(m)]
+    gain_vector = np.zeros([n])
     count = 0
     time_steps = []
     agents_involved_arr = []
