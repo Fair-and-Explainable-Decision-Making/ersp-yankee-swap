@@ -177,7 +177,7 @@ def get_multiple_agents_desired_items(
     for agent_index in agents_indexes:
         agent = agents[agent_index]
         list_desired_items = list_desired_items + agent.get_desired_items_indexes(items)
-    return list_desired_items(set(list_desired_items))
+    return list(set(list_desired_items))
 
 
 def get_multiple_agents_bundles(X: type[np.ndarray], agents_indexes: list[int]):
@@ -418,7 +418,7 @@ def update_exchange_graph(
     path = path_og.copy()
     path = path[1:-1]
     last_item = path[-1]
-    if X[last_item, len(agents)] <= 0:
+    if X[last_item, len(agents)] == 0:
         exchange_graph.remove_edge(last_item, "t")
     agents_involved_desired_items = get_multiple_agents_desired_items(
         agents, items, agents_involved
