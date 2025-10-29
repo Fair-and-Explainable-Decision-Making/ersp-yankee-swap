@@ -53,7 +53,7 @@ def initialize_exchange_graph(items: list[ScheduleItem]):
     for i, item in enumerate(items):
         exchange_graph.add_node(i)
         if item.capacity > 0:
-            exchange_graph.add_edge(i, "t")
+            exchange_graph.add_edge(i, "t", weight=1)
     return exchange_graph
 
 
@@ -336,7 +336,7 @@ def update_allocation_E(
 """Graph functions for the exchange graph"""
 
 
-def find_shortest_path(G: type[nx.Graph], start: str, end: str):
+def find_shortest_path(G: type[nx.Graph], start: str, end: str, weight=None):
     """Find shortest path on exchange graph.
 
     Find and return shortest path from start to end nodes on graph G. Return False if there is no path
@@ -351,7 +351,10 @@ def find_shortest_path(G: type[nx.Graph], start: str, end: str):
         of False: if there is no such path
     """
     try:
-        p = nx.shortest_path(G, source=start, target=end)
+        if weight is None:
+            p = nx.shortest_path(G, source=start, target=end)
+        else:
+            p = nx.shortest_path(G, source=start, target=end, weight=weight)
         return p
     except:
         return False
@@ -363,6 +366,7 @@ def add_agent_to_exchange_graph(
     agents: list[BaseAgent],
     items: list[ScheduleItem],
     agent_picked: int,
+    valuations=None,
 ):
     """Add picked agent to the exchange graph.
 
@@ -388,7 +392,12 @@ def add_agent_to_exchange_graph(
             and agents[agent_picked].marginal_contribution(bundle, g) == 1
             and g.capacity > 0
         ):
-            exchange_graph.add_edge("s", i)
+            if valuations is None:
+                exchange_graph.add_edge("s", i, weight=1)
+            else:
+                exchange_graph.add_edge(
+                    "s", i, weight=1 - 1e-6 * valuations[agent_picked, i]
+                )
     return exchange_graph
 
 
@@ -451,7 +460,7 @@ def update_exchange_graph(
                             break
                 if exchangeable:
                     if not exchange_graph.has_edge(item_idx, item_2_idx):
-                        exchange_graph.add_edge(item_idx, item_2_idx)
+                        exchange_graph.add_edge(item_idx, item_2_idx, weight=1)
                 else:
                     if exchange_graph.has_edge(item_idx, item_2_idx):
                         exchange_graph.remove_edge(item_idx, item_2_idx)
@@ -466,6 +475,7 @@ def update_exchange_graph_E(
     items: list[ScheduleItem],
     path_og: list[int],
     agents_involved: list[int],
+    valuations=None,
 ):
     """Update the exchange graph and edge matrix after the transfers made.
 
@@ -514,8 +524,26 @@ def update_exchange_graph_E(
                             agent_bundle_items, item1, item2
                         ):
                             edge_matrix[item1_idx][item2_idx].append(agent_index)
-                            if not exchange_graph.has_edge(item1_idx, item2_idx):
-                                exchange_graph.add_edge(item1_idx, item2_idx)
+                            if valuations is not None:
+                                edge_matrix[item1_idx][item2_idx].sort(
+                                    key=lambda x: valuations[x, item2_idx]
+                                    - valuations[x, item1_idx],
+                                    reverse=True,
+                                )
+                                first_agent = edge_matrix[item1_idx][item2_idx][0]
+                                weight = 1 - 1e-6 * (
+                                    valuations[first_agent, item2_idx]
+                                    - valuations[first_agent, item1_idx]
+                                )
+                            else:
+                                weight = 1
+                            if exchange_graph.has_edge(item1_idx, item2_idx):
+                                exchange_graph[item1_idx][item2_idx]["weight"] = weight
+                            else:
+                                exchange_graph.add_edge(
+                                    item1_idx, item2_idx, weight=weight
+                                )
+
     return exchange_graph, edge_matrix
 
 
@@ -745,6 +773,7 @@ def general_yankee_swap_E(
     criteria: str = "LorenzDominance",
     weights: list = [],
     plot_exchange_graph: bool = False,
+    valuations=None,
 ):
     """General Yankee swap allocation algorithm, edge matrix version.
 
@@ -778,13 +807,15 @@ def general_yankee_swap_E(
         count += 1
         agent_picked = np.argmax(gain_vector)
         exchange_graph = add_agent_to_exchange_graph(
-            X, exchange_graph, agents, items, agent_picked
+            X, exchange_graph, agents, items, agent_picked, valuations
         )
         if plot_exchange_graph:
             nx.draw(exchange_graph, with_labels=True)
             plt.show()
 
-        path = find_shortest_path(exchange_graph, "s", "t")
+        path = find_shortest_path(
+            exchange_graph, "s", "t", weight=None if valuations is None else "weight"
+        )
         exchange_graph.remove_node("s")
 
         if path == False:
@@ -797,7 +828,14 @@ def general_yankee_swap_E(
                 X, exchange_graph, edge_matrix, agents, items, path, agent_picked
             )
             exchange_graph, edge_matrix = update_exchange_graph_E(
-                X, exchange_graph, edge_matrix, agents, items, path, agents_involved
+                X,
+                exchange_graph,
+                edge_matrix,
+                agents,
+                items,
+                path,
+                agents_involved,
+                valuations,
             )
             gain_vector[agent_picked] = get_gain_function(
                 X, agents, items, agent_picked, criteria, weights
