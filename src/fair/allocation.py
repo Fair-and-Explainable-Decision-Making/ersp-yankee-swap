@@ -102,23 +102,6 @@ def get_gain_function(
         return w_i / (val + 1)
 
 
-def get_owners_list(X: type[np.ndarray], item_index: int):
-    """Get list of item's current owners.
-
-    From the exchange matrix, list of indices of all agents that currently have certain item.
-
-    Args:
-        X (type[np.ndarray]): Allocation matrix
-        item_index (int): index of the item for which we want to get the owners
-
-    Returns:
-        list[int]: list of item's owners' indices
-    """
-    item_list = X[item_index]
-    owners_list = np.nonzero(item_list)
-    return owners_list[0]
-
-
 def get_bundle_from_allocation_matrix(
     X: type[np.ndarray], items: list[ScheduleItem], agent_index: int
 ):
@@ -158,41 +141,6 @@ def get_bundle_indexes_from_allocation_matrix(X: type[np.ndarray], agent_index: 
         if int(items_list[i]) == 1:
             bundle_indexes.append(i)
     return bundle_indexes
-
-
-def find_agent(
-    X: type[np.ndarray],
-    agents: list[BaseAgent],
-    items: list[ScheduleItem],
-    current_item_index: int,
-    last_item_index: int,
-):
-    """Find agent willing to do the exchange.
-
-    Find index of an agent that is currently willing to exchange a current item for a certain other item.
-    This will depend on their current bundle, for which the allocation matrix is needed.
-
-    Args:
-        X (type[np.ndarray]): allocation matrix
-        agents (list[BaseAgent]): List of agents from class BaseAgent
-        items (list[ScheduleItem]): List of items from class BaseItem
-        current_item_index (int): index of the item that we want to exchange
-        last_item_index (int): index of the item that we want to exchange current item for
-
-    Returns:
-        item: index of the agent williing to do the exchange
-    """
-    owners = get_owners_list(X, current_item_index)
-    for owner in owners:
-        agent = agents[owner]
-        bundle = get_bundle_from_allocation_matrix(X, items, owner)
-        if agent.exchange_contribution(
-            bundle, items[current_item_index], items[last_item_index]
-        ):
-            return owner
-    print(
-        "Agent not found"
-    )  # this should never happen. If the item was in the path, then someone must be willing to exchange it
 
 
 """Update allocation after finding the shortest path in exchange graph"""
@@ -516,49 +464,6 @@ def round_robin(agents: list[BaseAgent], items: list[ScheduleItem], valuations=N
                 X[current_item[0], len(agents)] -= 1
             else:
                 players.remove(player)
-    return X
-
-
-def round_robin_weights(
-    agents: list[BaseAgent], items: list[ScheduleItem], weights: list[float]
-):
-    """Round Robin allocation algorithm, considering different weights among agents.
-
-    In each round, give the playing agent one item they can add to their bundle that give them positive utility, if any
-
-    Args:
-        agents (list[BaseAgent]): List of agents from class BaseAgent
-        items (list[ScheduleItem]): List of items from class BaseItem
-        weights (list[float]): list of agents assigned weights
-
-    Returns:
-        X (type[np.ndarray]): allocation matrix
-    """
-    players = list(range(len(agents)))
-    X = initialize_allocation_matrix(items, agents)
-    weights_aux = weights.copy()
-    while len(players) > 0:
-        weight = weights_aux[0]
-        for player in players:
-            if weights[player] == weight:
-                val = 0
-                current_item = []
-                agent = agents[player]
-                desired_items = agent.get_desired_items_indexes(items)
-                bundle = get_bundle_from_allocation_matrix(X, items, player)
-                for item in desired_items:
-                    if X[item, 0] > 0:
-                        current_val = agent.marginal_contribution(bundle, items[item])
-                        if current_val > val:
-                            current_item.clear()
-                            current_item.append(item)
-                            val = current_val
-                if len(current_item) > 0:
-                    X[current_item[0], player] = 1
-                    X[current_item[0], 0] -= 1
-                else:
-                    players.remove(player)
-                    weights_aux.pop(0)
     return X
 
 
